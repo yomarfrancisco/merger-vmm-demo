@@ -996,15 +996,18 @@ async function recompute() {
     const fringe01 = Number(m?.structure?.fringe) || 0;
     const total01  = inside01.reduce((a,b)=>a+b,0) + fringe01;
 
-    // Set risk pill from backend
-    setRiskPill(m?.risk || 'Low');
+    // Compute risk locally to match the HHI we display
+    const riskLocal = computeRiskLevel({
+      preHHI: m?.hhi?.pre,
+      postHHI: m?.hhi?.post,
+      policy: m?.policy || Store?.policy || 'EU'
+    });
+    setRiskPill(riskLocal);
 
-    // Quick console assertions (so you can trust it)
-    console.assert(
-      document.getElementById('riskText')?.textContent === (m?.risk || 'Low'),
-      'Risk text mismatch',
-      { ui: document.getElementById('riskText')?.textContent, backend: m?.risk }
-    );
+    // Optional: log any mismatch so we can fix backend next
+    if (m?.risk && m.risk !== riskLocal) {
+      console.warn('[RISK_MISMATCH]', { backend: m.risk, local: riskLocal, hhi: m.hhi, policy: m?.policy });
+    }
 
     // Log explicit fields (not just "Object") so we see variation
     console.log('[BACKEND]', {

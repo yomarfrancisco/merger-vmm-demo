@@ -38,33 +38,20 @@ class MetricsRequest(BaseModel):
 class CalibrateRequest(BaseModel):
     seed: int
 
-# Banking-calibrated thresholds for realistic risk variation
-BANKING_THRESHOLDS = {
-    # Tuned for typical concentrated banking markets so we actually see variation
-    "EU": {"post_med": 3000, "post_high": 3600, "dmed": 500, "dhigh": 1000},
-    "SA": {"post_med": 2800, "post_high": 3400, "dmed": 400, "dhigh": 900},
+# Policy thresholds for risk computation (matching frontend)
+POLICY_THRESHOLDS = {
+    "EU": {"deltaHigh": 150, "postHigh": 2500, "deltaMed": 100, "postMed": 2000},
+    "SA": {"deltaHigh": 100, "postHigh": 2000, "deltaMed": 50,  "postMed": 1500}
 }
 
-def risk_level(hhi_pre: int, hhi_post: int, policy: str, conduct: float, pass_through: float) -> str:
-    Δ = hhi_post - hhi_pre
-    t = BANKING_THRESHOLDS.get(policy, BANKING_THRESHOLDS["EU"])
-    # base level from structure
-    if hhi_post >= t["post_high"] or Δ >= t["dhigh"]:
-        level = "High"
-    elif hhi_post >= t["post_med"] or Δ >= t["dmed"]:
-        level = "Medium"
-    else:
-        level = "Low"
-    # behavior adjustment (rule-of-reason flavor)
-    # • very competitive conduct + low pass-through → soften one notch
-    # • collusive conduct + high pass-through → harden one notch
-    soften = (conduct <= 0.25 and pass_through <= 0.40)
-    harden = (conduct >= 0.75 and pass_through >= 0.60)
-    if level == "High" and soften: level = "Medium"
-    elif level == "Medium" and soften: level = "Low"
-    elif level == "Low" and harden: level = "Medium"
-    elif level == "Medium" and harden: level = "High"
-    return level
+def risk_level(pre_hhi: int, post_hhi: int, policy: str) -> str:
+    TH = POLICY_THRESHOLDS.get(policy, POLICY_THRESHOLDS["EU"])
+    delta = post_hhi - pre_hhi
+    if delta >= TH["deltaHigh"] or post_hhi >= TH["postHigh"]:
+        return "High"
+    if delta >= TH["deltaMed"] or post_hhi >= TH["postMed"]:
+        return "Medium"
+    return "Low"
 
 BREADTH_ALPHA = 0.30
 
@@ -310,7 +297,7 @@ async def compute_metrics(request: MetricsRequest):
     bps = (2.0 + 0.02*hhi_delta) * (1 + 0.5*request.params.conduct) * (1 + 0.3*request.params.entry) * (1 - 0.2*request.params.innov)
     
     welfare = compute_welfare(bps, pass_through, request.params.conduct, request.params.entry, request.params.innov)
-    risk = risk_level(hhi_pre, hhi_post, request.policy, request.params.conduct, pass_through)
+    risk = risk_level(hhi_pre, hhi_post, request.policy)
     
     # Prepare response with normalized shares and fringe
     response = {

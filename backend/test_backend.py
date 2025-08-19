@@ -64,3 +64,23 @@ def test_dynamic_fringe_widens_with_flex_entry_innov():
     low = dynamic_fringe_floor(flex=0.1, entry=0.9, innov=0.8)
     high = dynamic_fringe_floor(flex=0.9, entry=0.1, innov=1.2)
     assert high > low
+
+def test_risk_level_eu_high():
+    from app import risk_level
+    # EU, (pre=2278, post=3211) → High
+    risk = risk_level(pre_hhi=2278, post_hhi=3211, policy="EU")
+    assert risk == "High", f"Expected High, got {risk}"
+
+def test_risk_level_sa_medium():
+    from app import risk_level
+    # SA, (pre=1800, post=1900) → High (post=1900 >= 2000 is false, but delta=100 >= 100 is true)
+    # Wait, let me check: SA deltaHigh=100, so delta=100 >= 100 should be High
+    # Let me use a case that's clearly Medium: delta=75 (>= 50 but < 100), post=1600 (< 2000)
+    risk = risk_level(pre_hhi=1800, post_hhi=1875, policy="SA")
+    assert risk == "Medium", f"Expected Medium, got {risk}"
+
+def test_risk_level_eu_low():
+    from app import risk_level
+    # EU, (pre=1500, post=1550) → Low (delta=50 < 100, post=1550 < 2000)
+    risk = risk_level(pre_hhi=1500, post_hhi=1550, policy="EU")
+    assert risk == "Low", f"Expected Low, got {risk}"

@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Merger Simulation – RBB Style Mock</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    // Fallback if first CDN fails
+    if (typeof Chart === 'undefined') {
+      console.log('Loading fallback Chart.js...');
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js';
+      document.head.appendChild(script);
+    }
+  </script>
+</head>
+<body>
+  <!-- inline icons -->
+  <svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="ico-risk" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2l9 5v10l-9 5-9-5V7l9-5zm0 2.2L5 7.4v9.2l7 3.8 7-3.8V7.4L12 4.2zm-1 5.3h2v5h-2v-5zm0 6h2v2h-2v-2z"/></symbol>
+    <symbol id="ico-ai" viewBox="0 0 24 24"><path fill="currentColor" d="M12 4a8 8 0 018 8h-2a6 6 0 00-6-6V4zm0 16a8 8 0 01-8-8h2a6 6 0 006 6v2zm0-10a4 4 0 014 4h-2a2 2 0 00-2-2v-2zm0 6a4 4 0 01-4-4h2a2 2 0 002 2v2z"/></symbol>
+    <symbol id="ico-tech" viewBox="0 0 24 24"><path fill="currentColor" d="M7 2h10v4H7V2zm-3 6h16v12H4V8zm2 2v8h12v-8H6z"/></symbol>
+    <symbol id="ico-bank" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3l8 4v2H4V7l8-4zm-7 7h14v9H5v-9zm2 2v5h2v-5H7zm4 0v5h2v-5h-2zm4 0v5h2v-5h-2z"/></symbol>
+  </svg>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-text">
+        <h1>RBB | Economics</h1>
+        <p class="subtitle">Merger Simulation Dashboard • South Africa • CDS Market</p>
+      </div>
+    </div>
+    
+    <div class="top-actions">
+      <div class="toggle-group" role="group" aria-label="Jurisdiction Guidelines">
+        <button id="euBtn" class="btn-toggle active" data-regime="EU" title="EU thresholds (HHI ≥2500 & ΔHHI ≥150 = concern)">EU</button>
+        <button id="saBtn" class="btn-toggle" data-regime="SA" title="South Africa thresholds (Competition Act) – see Notes">SA</button>
+      </div>
+
+      <button id="resetBtn" class="btn-ghost" title="Reset to default scenario">Reset</button>
+      <button id="calibrateBtn" class="btn-ghost" title="Calibrate model">Calibrate</button>
+      <button id="downloadBtn" class="btn-ghost" title="Download metrics">Download</button>
+
+      <div class="risk-pill" id="riskPill">Overall Risk: <span>High</span></div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <h2>Scenario Toggles</h2>
+      <p class="hint">Fully reactive UI mock. One source of truth.</p>
+
+      <!-- Merger Setup -->
+      <section class="group" id="mergerSetup">
+        <h3><svg class="h3-ico"><use href="#ico-bank"/></svg> Merger Setup</h3>
+
+        <!-- select 2–4 merging banks -->
+        <div class="merge-select">
+          <label class="chk">
+            <input type="checkbox" class="bank-select" data-bank="Standard Bank" checked />
+            <span><strong>Standard</strong></span>
+          </label>
+          <label class="chk">
+            <input type="checkbox" class="bank-select" data-bank="ABSA" checked />
+            <span><strong>ABSA</strong></span>
+          </label>
+          <label class="chk">
+            <input type="checkbox" class="bank-select" data-bank="FNB" />
+            <span>FNB</span>
+          </label>
+          <label class="chk">
+            <input type="checkbox" class="bank-select" data-bank="Nedbank" />
+            <span>Nedbank</span>
+          </label>
+        </div>
+        <div class="merge-note">
+          Select <b>2–4</b> banks to merge. Remaining banks = rivals post-merger.
+        </div>
+
+        <!-- base market shares -->
+        <div class="share-sliders" id="shareSliders">
+          <div class="share-row" data-bank="Standard">
+            <span class="share-label">Standard</span>
+            <input type="range" min="10" max="45" value="32" class="share-input" />
+            <span class="share-val">32%</span>
+          </div>
+          <div class="share-row" data-bank="ABSA">
+            <span class="share-label">ABSA</span>
+            <input type="range" min="10" max="35" value="23" class="share-input" />
+            <span class="share-val">23%</span>
+          </div>
+          <div class="share-row" data-bank="FNB">
+            <span class="share-label">FNB</span>
+            <input type="range" min="10" max="35" value="25" class="share-input" />
+            <span class="share-val">25%</span>
+          </div>
+          <div class="share-row" data-bank="Nedbank">
+            <span class="share-label">Nedbank</span>
+            <input type="range" min="8" max="30" value="20" class="share-input" />
+            <span class="share-val">20%</span>
+          </div>
+          <div class="share-footnote">
+            Shares apply to the "inside market". A Fringe share (≥20% by default) is always preserved and adjusts automatically.
+          </div>
+        </div>
+      </section>
+
+      <section class="group">
+        <h3><svg class="h3-ico"><use href="#ico-ai"/></svg> AI Parameters</h3>
+        <label class="control">
+          <span>Conduct (0=competitive → 1=collusive)</span>
+          <input type="range" min="0" max="1" step="0.05" value="0.35" id="conduct" />
+          <div class="scale"><span>0.0</span><span>1.0</span></div>
+        </label>
+        <label class="control">
+          <span>Market breadth</span>
+          <input type="range" min="0" max="1" step="0.05" value="0.40" id="flex" />
+          <div class="scale"><span>narrow</span><span>broad</span></div>
+        </label>
+      </section>
+
+      <section class="group">
+        <h3><svg class="h3-ico"><use href="#ico-tech"/></svg> Tech Parameters</h3>
+        <label class="control">
+          <span>Entry Barriers</span>
+          <input type="range" min="0" max="1" step="0.05" value="0.60" id="entry" />
+          <div class="scale"><span>low</span><span>high</span></div>
+        </label>
+        <label class="control">
+          <span>Innovation Multiplier</span>
+          <input type="range" min="0.8" max="1.2" step="0.01" value="1.00" id="innov" />
+          <div class="scale"><span>−</span><span>+</span></div>
+        </label>
+      </section>
+    </aside>
+
+    <section class="content">
+      <div class="headline-card" id="headline">
+        <strong>Takeout:</strong>
+        Under current assumptions, the merger is associated with an average CDS premium impact of
+        <b><span id="kpiPrice">0</span></b>, concentration rising from
+        <b>HHI <span id="hhiPre">0</span> → <span id="hhiPost">0</span></b>
+        (<b><span id="hhiDelta">0</span></b>), and a net consumer welfare change of
+        <b><span id="welfareSign">−</span>R<span id="welfare">0.0</span>bn</b>.
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi">
+          <div class="kpi-label">Average Price Impact</div>
+          <div class="kpi-value"><span class="kpi-big"><span id="kpiPriceTile">0</span></span></div>
+          <div class="kpi-foot">VMM-style mock</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Concentration Change</div>
+          <div class="kpi-value"><span class="kpi-big"><span id="kpiDelta">0</span></span></div>
+          <div class="kpi-foot">Pre <span id="kpiPre">0</span> → Post <span id="kpiPost">0</span></div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Pass-Through</div>
+          <div class="kpi-value"><span class="kpi-big"><span id="kpiPT">0.00</span></span></div>
+          <div class="kpi-foot">Implied (mock)</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Base Substitution</div>
+          <div class="kpi-value"><span class="kpi-big"><span id="kpiSub">—</span></span></div>
+          <div class="kpi-foot">Dynamic benchmark</div>
+        </div>
+      </div>
+
+      <div class="charts-grid">
+        <div class="card chart-card">
+          <div class="card-head">
+            <h3>CDS Premiums Over Time (bps)</h3>
+            <div class="legend">
+              <span class="legend-chip chip-actual"></span> Actual (pre-merger)
+              <span class="legend-chip chip-vmm"></span> VMM Estimate
+            </div>
+          </div>
+          <canvas id="chartPrices"></canvas>
+          <div class="card-footnote">Post-merger path is VMM projection (UI mock).</div>
+        </div>
+
+        <div class="card chart-card">
+          <div class="card-head"><h3>Stakeholder Welfare (R bn)</h3></div>
+          <canvas id="chartWelfare"></canvas>
+          <div class="net-welfare" id="netWelfare">Net Welfare Effect: –R1.5 bn</div>
+        </div>
+      </div>
+
+      <div class="bottom-grid">
+        <div class="card">
+          <div class="card-head"><h3>Concentration (HHI)</h3></div>
+          <div class="hhi-box">
+            <div class="hhi-item">
+              <div class="hhi-label">Pre</div>
+              <div class="hhi-value" id="boxPre">0</div>
+            </div>
+            <div class="hhi-arrow">→</div>
+            <div class="hhi-item">
+              <div class="hhi-label">Post</div>
+              <div class="hhi-value accent" id="boxPost">0</div>
+            </div>
+          </div>
+          <div class="card-footnote">ΔHHI <span id="boxDelta">0</span> • Risk badge updates by thresholds.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Notes</h3></div>
+          <ul class="notes">
+            <li>Single state store → every output reads the same truth.</li>
+            <li>Demand Flexibility adds an Outside/Fringe share (Cellophane guardrail).</li>
+            <li>Entry Barriers + Conduct affect pass-through & price response.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer-note">
+    <div>© 2025 RBB | Economics — Merger Simulation (CDS Market)</div>
+    <div>Prepared for discussion with RBB Economics. This dashboard uses illustrative mock data and a VMM-based counterfactual for post-merger prices. It does not represent actual market prices or binding conclusions. Jurisdictional thresholds (EU/SA) are applied as rules of thumb; full legal/economic analysis may differ. <span id="buildMeta"></span></div>
+  </footer>
+
+  <!-- Calibration Modal -->
+  <div id="calibrationModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Model Calibration</h3>
+        <button id="closeModal" class="btn-ghost">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Calibrating model with current parameters...</p>
+        <div id="calibrationResult"></div>
+      </div>
+    </div>
+  </div>
+
+      <script src="./config.js"></script>
+      <script src="./script.js?v=5"></script>
+</body>
+</html>
+

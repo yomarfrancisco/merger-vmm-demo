@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+
+# FastAPI/venv
+.venv/
+env/
+venv/
+
+# Frontend
+node_modules/
+dist/
+
+# Secrets & OS
+.env
+.DS_Store
+
+# Editors
+.vscode/
+.idea/

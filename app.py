@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
-from ui.formatting import EU, SA, fmt_bps, fmt_hhi_card, fmt_rbn, risk_level
+from ui.formatting import EU, SA, fmt_bps, fmt_hhi_card, fmt_rbn, risk_level2
 from core.state_store import baseline_scenario, simulate_cds_series, BANKS
 from core.metrics import hhi_from_shares, hhi_post_merge, pass_through, base_substitution_label, welfare_decomposition
 from core.vmm_model import fit_vmm_pre, predict_with_ci
@@ -214,7 +214,14 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # --- Risk badge
-badge = risk_level(hhi_pre, hhi_post, TH)
+badge = risk_level2(
+    hhi_pre, hhi_post,
+    pt=pt,
+    flex=scn.demand_flex,
+    entry=scn.entry_barriers,
+    innov=scn.innovation_mult,
+    TH=TH.to_dict()
+)
 risk_class = f"risk-{badge.lower()}"
 st.markdown(f"""
 <div class="risk-badge {risk_class}">Overall Risk: {badge}</div>

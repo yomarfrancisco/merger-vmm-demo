@@ -45,7 +45,11 @@
       <button id="calibrateBtn" class="btn-ghost" title="Calibrate model">Calibrate</button>
       <button id="downloadBtn" class="btn-ghost" title="Download metrics">Download</button>
 
-      <div class="risk-pill" id="riskPill">Overall Risk: <span>High</span></div>
+      <!-- Risk pill -->
+      <div id="riskPill" class="risk-pill low">
+        <span class="risk-label">Overall Risk:</span>
+        <span id="riskText">Low</span>
+      </div>
     </div>
   </header>
 
@@ -105,6 +109,9 @@
           </div>
           <div class="share-footnote">
             Shares apply to the "inside market". A Fringe share (≥20% by default) is always preserved and adjusts automatically.
+            <div class="share-footnote">
+              <span id="fringeLabel">Fringe: 20%</span>
+            </div>
           </div>
         </div>
       </section>

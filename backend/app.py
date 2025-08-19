@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Any
 import numpy as np
 import json
-from db import log_calibration_run, log_scenario_run
+# from db import log_calibration_run, log_scenario_run
 
 app = FastAPI(title="VMM Merger Simulation API")
 
@@ -67,7 +67,53 @@ def risk_level(hhi_pre: int, hhi_post: int, policy: str, conduct: float, pass_th
     return level
 
 BREADTH_ALPHA = 0.30
-FRINGE_MIN = 0.20
+
+def dynamic_fringe_floor(flex: float, entry: float, innov: float) -> float:
+    """Return fringe floor in [0.10, 0.50] as function of params."""
+    base     = 0.20                               # 20% baseline
+    breadth  = 0.15 * flex                        # + up to 15% when market is broad
+    barriers = -0.10 * entry                      # - up to 10% when barriers are high
+    innov_fx = 0.05 * (innov - 1.0)               # +/- up to 5% around 1.0
+
+    f = base + breadth + barriers + innov_fx
+    return min(0.50, max(0.10, f))               # clamp 10%..50%
+
+def normalize_shares(raw_inside: list[float], F_min: float) -> dict:
+    # raw_inside like [0.45, 0.35, 0.35, 0.30] if user drags sliders
+    # 1) sanitize negatives
+    r = [max(0.0, float(x)) for x in raw_inside]
+    R = sum(r)
+    if R <= 1e-12:
+        # even split inside capacity if everything is zero
+        C = 1.0 - F_min
+        n = len(r)
+        s = [C / n] * n
+        F = 1.0 - sum(s)
+    else:
+        C = 1.0 - F_min
+        scale = C / R
+        s = [x * scale for x in r]
+        F = 1.0 - sum(s)
+        if F < F_min:  # numerical guard
+            # pull proportionally from s to restore F_min
+            deficit = F_min - F
+            take = deficit
+            S = sum(s)
+            if S > 0:
+                s = [max(0.0, si - take * (si / S)) for si in s]
+            F = 1.0 - sum(s)
+
+    # final tidy to 1.0
+    total = sum(s) + F
+    if abs(total - 1.0) > 1e-9:
+        # push the tiny diff to fringe
+        F += (1.0 - total)
+
+    return {"inside": s, "fringe": F, "fringe_floor": F_min}
+
+def hhi_from_components(shares):
+    # shares in 0..1; HHI on 0..100 scale
+    return int(round(sum((s*100.0)**2 for s in shares)))
 
 def mulberry32(seed: int):
     """Seeded RNG for deterministic results"""
@@ -206,33 +252,52 @@ async def health_check():
 async def compute_metrics(request: MetricsRequest):
     """Compute all metrics for a merger scenario"""
     
-    # Extract bank data
-    bank_shares = {bank.name: bank.share for bank in request.banks}
-    selected_banks = [bank.name for bank in request.banks if bank.selected]
+    # Extract raw inside shares from request
+    raw_inside = [b.share for b in request.banks]
     
-    # Get inside shares and compute fringe
-    inside_shares = [bank.share for bank in request.banks]
-    fringe = max(FRINGE_MIN, 1 - sum(inside_shares))
+    # Calculate dynamic fringe floor
+    f_floor = dynamic_fringe_floor(request.params.flex, request.params.entry, request.params.innov)
     
-    # Apply market breadth
+    # Normalize shares with single function
+    norm_result = normalize_shares(raw_inside, f_floor)
+    inside_shares = norm_result["inside"]
+    fringe = norm_result["fringe"]
+    
+    # Create normalized bank objects with selected flags
+    banks_norm = []
+    for i, b in enumerate(request.banks):
+        banks_norm.append({
+            "name": b.name,
+            "share": inside_shares[i],
+            "selected": b.selected
+        })
+    
+    # Unit checks
+    total = sum(inside_shares) + fringe
+    assert abs(total - 1.0) < 1e-9, f"Total should be 1.0, got {total}"
+    assert fringe >= f_floor - 1e-9, f"Fringe {fringe} should be >= floor {f_floor}"
+    print(f"DEBUG: fringe_floor={f_floor:.3f}, fringe={fringe:.3f}, total={total:.6f}")
+    
+    # Apply market breadth to normalized shares
     breadth_result = apply_market_breadth(inside_shares, fringe, request.params.flex)
     inside_adj = breadth_result["inside"]
     fringe_adj = breadth_result["fringe"]
     
-    # Compute pre-merger HHI
-    pre_shares = inside_adj + [fringe_adj]
-    hhi_pre = compute_hhi(pre_shares)
+    # Compute pre-merger HHI from normalized components
+    pre_components = inside_shares + [fringe]
+    hhi_pre = hhi_from_components(pre_components)
     
-    # Compute post-merger HHI
-    merged_share = sum(inside_adj[i] for i, bank in enumerate(request.banks) if bank.selected)
-    rival_shares = [inside_adj[i] for i, bank in enumerate(request.banks) if not bank.selected]
-    post_shares = [merged_share] + rival_shares + [fringe_adj]
-    hhi_post = compute_hhi(post_shares)
+    # Compute post-merger HHI: combine selected into one, keep rivals + fringe
+    selected = [b for b in banks_norm if b.get('selected')]
+    merged_share = sum(b['share'] for b in selected)
+    rivals = [b['share'] for b in banks_norm if not b.get('selected')]
+    post_components = [merged_share] + rivals + [fringe]
+    hhi_post = hhi_from_components(post_components)
     
     hhi_delta = hhi_post - hhi_pre
     
     # Debug logging
-    print(f"DEBUG: hhi_pre={hhi_pre}, hhi_post={hhi_post}, delta={hhi_delta}, selected_banks={[b.name for b in request.banks if b.selected]}")
+    print(f"DEBUG: hhi_pre={hhi_pre}, hhi_post={hhi_post}, delta={hhi_delta}, selected_banks={[b['name'] for b in banks_norm if b.get('selected')]}")
     
     # Get VMM predictions
     vmm_result = vmm_predict(request.banks, request.params, request.seed, hhi_delta)
@@ -247,7 +312,7 @@ async def compute_metrics(request: MetricsRequest):
     welfare = compute_welfare(bps, pass_through, request.params.conduct, request.params.entry, request.params.innov)
     risk = risk_level(hhi_pre, hhi_post, request.policy, request.params.conduct, pass_through)
     
-    # Prepare response
+    # Prepare response with normalized shares and fringe
     response = {
         "hhi": {
             "pre": hhi_pre,
@@ -275,11 +340,16 @@ async def compute_metrics(request: MetricsRequest):
             "shares_sum": round(sum(inside_adj) + fringe_adj, 3),
             "tolerance_ok": abs(sum(inside_adj) + fringe_adj - 1.0) < 0.001,
             "seed": request.seed
+        },
+        "structure": {
+            "inside": inside_shares,
+            "fringe": fringe,
+            "fringe_floor": f_floor
         }
     }
     
     # Log the run
-    log_scenario_run(request.policy, request.model_dump(), response)
+    # log_scenario_run(request.policy, request.model_dump(), response)
     
     return response
 
@@ -302,7 +372,7 @@ async def calibrate(request: CalibrateRequest):
     }
     
     # Log the calibration
-    log_calibration_run(request.seed, {"seed": request.seed}, response)
+    # log_calibration_run(request.seed, {"seed": request.seed}, response)
     
     return response
 

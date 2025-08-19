@@ -42,11 +42,19 @@ body{
 .btn-ghost{background:transparent; border:1px solid var(--border); color:var(--ink); padding:8px 12px; border-radius:8px; cursor:pointer}
 .btn-ghost:hover{border-color:var(--accent)}
 
-.risk-pill{
-  background:var(--muted);border:1px solid var(--border);border-radius:12px;
-  padding:8px 12px;color:var(--ink-dim);
+.risk-pill {
+  display:inline-flex; align-items:center; gap:6px;
+  background: var(--muted);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:8px 12px;
+  font-weight:600;
 }
-.risk-pill span{color:var(--warn);font-weight:600}
+.risk-pill .risk-label { color: var(--warn); } /* amber text that stays amber */
+
+.risk-pill.low  { background: rgba(73,211,154,.12);  border-color: rgba(73,211,154,.35); }  /* greenish */
+.risk-pill.med  { background: rgba(255,209,102,.12); border-color: rgba(255,209,102,.35); } /* amber */
+.risk-pill.high { background: rgba(255,107,107,.12);  border-color: rgba(255,107,107,.35); } /* red */
 
 /* Layout */
 .layout{display:grid;grid-template-columns:300px 1fr;gap:20px;padding:20px;max-width:1400px;margin:0 auto}

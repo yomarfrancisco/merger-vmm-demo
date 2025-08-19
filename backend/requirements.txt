@@ -2,4 +2,5 @@ fastapi>=0.111
 uvicorn[standard]>=0.30
 pydantic>=2.6
 numpy>=1.26
+httpx
 # sqlite3 is stdlib; no package needed
